@@ -2,56 +2,109 @@ rm(list = ls())
 
 `%>%` <- dplyr::`%>%`
 
+# Parameters ------------------------------------------------------------------
 verbose <- TRUE
 data_path <- "D:/Downloads/AllPublicXML"
+export_path <-
+  file.path("D:/Dropbox (Personal)/astrolabe/grants",
+            "mount_sinai_sttr_grant_20170905", "clinical_trials")
 
-id_path <- "NCT0315xxxx"
 
-trial_ids <- dir(file.path(data_path, id_path))
-
-trial_df <- lapply(trial_ids, function(trial_id) {
-  if (verbose) message(trial_id)
-  
-  trial_path <- file.path(data_path, id_path, trial_id)
-  xml <- XML::xmlTreeParse(trial_path)
-  xml_list <- XML::xmlToList(xml)
-  
-  # ADD FUNCTION THAT PROCESSES
-  # NULL -> NA (plus all dependent variables)
-  # LIST -> PARSE
-  # xml_list$enrollment$.attrs["type"]
-  
-  official_title <- xml_list$official_title
-  if (is.null(official_title)) official_title <- NA
-  
-  start_date <- xml_list$start_date
-  start_date_type <- NA
-  if (is.list(start_date)) {
-    start_date_type <- start_date$.attrs[[1]]
-    start_date <- start_date$text
+# Functions -------------------------------------------------------------------
+#' Process a property from a ClinicalTrials.gov XML file.
+#' 
+#' Given a property name and an XML endpoint, converts the endpoint into a data
+#' frame. Empty data points become NAs, single-values become one-row data
+#' frames, and multi-values have one row for the text field and one for each
+#' attribute.
+#' 
+#' @param property The name of the property.
+#' @param l The XML endpoint (NULL, a character, or a list with text and
+#' $.attrs fields).
+#' @return A data frame version of the XML endpoint.
+xmlProcessProperty <- function(property, l) {
+  if (is.null(l)) {
+    # Property missing, return empty.
+    data.frame(Property = property, Value = NA)
+  } else if (is.character(l)) {
+    # Property has a single value.
+    data.frame(Property = property, Value = l)
+  } else if (is.list(l)) {
+    # Property has multiple values.
+    df <- data.frame(Property = property, Value = l$text)
+    
+    for (attr in names(l$.attrs)) {
+      df <- rbind(
+        df,
+        data.frame(
+          Property = paste0(property, "_", attr),
+          Value = l$.attrs[[attr]]
+        )
+      )
+    }
+    
+    df
+  } else {
+    stop(paste0("unknown XML endpoint format for property \"", property, "\""))
   }
-  
-  enrollment <- xml_list$enrollment
-
-  xml_df <- data.frame(
-    NctId = xml_list$id_info$nct_id,
-    BriefTitle = xml_list$brief_title,
-    OfficialTitle = official_title,
-    StartDate = start_date,
-    StartDateType = start_date_type,
-    Phase = xml_list$phase,
-    StudyType = xml_list$study_type,
-    Enrollment = xml_list$enrollment$text,
-    EnrollmentType = xml_list$enrollment$.attrs[[1]],
-    Condition = xml_list$condition
-  )
-  
-  if (nrow(xml_df) > 1) stop("xml_df has more than one row")
-  
-  xml_df
-}) %>% dplyr::bind_rows() %>%
-  tibble::as_tibble()
+}
 
 
-# biospec_descr -- blood
+# Main ------------------------------------------------------------------------
+id_paths <- dir(data_path)
+id_paths <- setdiff(id_paths, "Contents.txt")
+
+for (id_path in id_paths) {
+  if (verbose) message(id_path)
+  
+  trial_ids <- dir(file.path(data_path, id_path))
+  
+  trial_df <- lapply(trial_ids, function(trial_id) {
+    if (verbose) message(paste0("\t", trial_id))
+    
+    trial_path <- file.path(data_path, id_path, trial_id)
+    xml <- XML::xmlTreeParse(trial_path)
+    xml_list <- XML::xmlToList(xml)
+    
+    # Scan properties and convert to DF.
+    xml_endpoints <- tibble::tibble(
+      Property = c(
+        "NctId",
+        "BriefTitle",
+        "OfficialTitle",
+        "StartDate",
+        "CompletionDate",
+        "Phase",
+        "StudyType",
+        "Enrollment",
+        "Condition"
+      ),
+      XmlEndpoint = list(
+        xml_list$id_info$nct_id,
+        xml_list$brief_title,
+        xml_list$official_title,
+        xml_list$start_date,
+        xml_list$completion_date,
+        xml_list$phase,
+        xml_list$study_type,
+        xml_list$enrollment,
+        xml_list$condition
+      )
+    )
+    
+    # Process each property in turn.
+    xml_endpoints %>%
+      apply(1, function(row)
+        xmlProcessProperty(row$Property, row$XmlEndpoint)) %>%
+      dplyr::bind_rows() %>%
+      dplyr::mutate(TrialId = trial_id)
+  }) %>% dplyr::bind_rows() %>%
+    tibble::as_tibble() %>%
+    dplyr::select(TrialId, Property, Value)
+  
+  trial_df_file_path <- file.path(export_path, paste0(id_path, ".RDS"))
+  saveRDS(trial_df, trial_df_file_path)
+  
+  stop()
+}
 
