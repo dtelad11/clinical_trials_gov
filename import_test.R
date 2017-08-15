@@ -4,7 +4,7 @@ rm(list = ls())
 
 # Parameters ------------------------------------------------------------------
 verbose <- TRUE
-import_years <- as.character(2013:2017)
+import_years <- as.character(2012:2017)
 data_path <- "D:/Downloads/AllPublicXML"
 export_path <-
   file.path("D:/Dropbox (Personal)/astrolabe/grants",
@@ -64,8 +64,9 @@ for (id_path in id_paths) {
   xml <- XML::xmlTreeParse(file.path(data_path, id_path, tail(trial_ids, 1)))
   xml_list <- XML::xmlToList(xml)
   start_date <- xml_list$start_date
-  if (verbose) message(start_date)
   if (is.null(start_date)) next
+  if (is.list(start_date)) start_date <- start_date$text
+  if (verbose) message(start_date)
   date_in_import_years <- 
     grep(paste0("(", paste(import_years, collapse = "|"), ")"), start_date)
   if (length(date_in_import_years) == 0) next
