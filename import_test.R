@@ -71,6 +71,10 @@ for (id_path in id_paths) {
     grep(paste0("(", paste(import_years, collapse = "|"), ")"), start_date)
   if (length(date_in_import_years) == 0) next
   
+  # Skip directories that were already imported.
+  trial_df_file_path <- file.path(export_path, paste0(id_path, ".RDS"))
+  if (file.exists(trial_df_file_path)) next
+  
   # Import all trials in this directory.
   trial_df <- lapply(trial_ids, function(trial_id) {
     if (verbose) message(paste0("\t", trial_id))
@@ -115,9 +119,5 @@ for (id_path in id_paths) {
     tibble::as_tibble() %>%
     dplyr::select(TrialId, Property, Value)
   
-  trial_df_file_path <- file.path(export_path, paste0(id_path, ".RDS"))
   saveRDS(trial_df, trial_df_file_path)
-  
-  stop()
 }
-
