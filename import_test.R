@@ -1,5 +1,6 @@
 rm(list = ls())
 
+library(parallel)
 `%>%` <- dplyr::`%>%`
 
 # Parameters ------------------------------------------------------------------
@@ -9,6 +10,7 @@ data_path <- "D:/Downloads/AllPublicXML"
 export_path <-
   file.path("D:/Dropbox (Personal)/astrolabe/grants",
             "mount_sinai_sttr_grant_20170905", "clinical_trials")
+no_cores <- detectCores() - 1
 
 
 # Functions -------------------------------------------------------------------
@@ -75,10 +77,12 @@ for (id_path in id_paths) {
   trial_df_file_path <- file.path(export_path, paste0(id_path, ".RDS"))
   if (file.exists(trial_df_file_path)) next
   
+  # Initiate cluster.
+  cl <- makeCluster(no_cores)
+  clusterExport(cl, c("data_path", "id_path", "%>%", "xmlProcessProperty"))
+  
   # Import all trials in this directory.
-  trial_df <- lapply(trial_ids, function(trial_id) {
-    if (verbose) message(paste0("\t", trial_id))
-    
+  trial_df <- parLapply(cl, trial_ids, function(trial_id) {
     trial_path <- file.path(data_path, id_path, trial_id)
     xml <- XML::xmlTreeParse(trial_path)
     xml_list <- XML::xmlToList(xml)
@@ -115,9 +119,15 @@ for (id_path in id_paths) {
         xmlProcessProperty(row$Property, row$XmlEndpoint)) %>%
       dplyr::bind_rows() %>%
       dplyr::mutate(TrialId = trial_id)
-  }) %>% dplyr::bind_rows() %>%
+  })
+  
+  stopCluster(cl)
+
+  trial_df <- trial_df %>%
+    dplyr::bind_rows() %>%
     tibble::as_tibble() %>%
     dplyr::select(TrialId, Property, Value)
   
   saveRDS(trial_df, trial_df_file_path)
 }
+
