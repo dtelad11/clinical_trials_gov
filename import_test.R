@@ -4,6 +4,7 @@ rm(list = ls())
 
 # Parameters ------------------------------------------------------------------
 verbose <- TRUE
+import_years <- as.character(2013:2017)
 data_path <- "D:/Downloads/AllPublicXML"
 export_path <-
   file.path("D:/Dropbox (Personal)/astrolabe/grants",
@@ -59,6 +60,17 @@ for (id_path in id_paths) {
   
   trial_ids <- dir(file.path(data_path, id_path))
   
+  # Examine last file, skip this directory if it's not within last few years.
+  xml <- XML::xmlTreeParse(file.path(data_path, id_path, tail(trial_ids, 1)))
+  xml_list <- XML::xmlToList(xml)
+  start_date <- xml_list$start_date
+  if (verbose) message(start_date)
+  if (is.null(start_date)) next
+  date_in_import_years <- 
+    grep(paste0("(", paste(import_years, collapse = "|"), ")"), start_date)
+  if (length(date_in_import_years) == 0) next
+  
+  # Import all trials in this directory.
   trial_df <- lapply(trial_ids, function(trial_id) {
     if (verbose) message(paste0("\t", trial_id))
     
