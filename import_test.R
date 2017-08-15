@@ -121,6 +121,7 @@ for (id_path in id_paths) {
       dplyr::mutate(TrialId = trial_id)
   })
   
+  # Shut down cluster and export data frame.
   stopCluster(cl)
 
   trial_df <- trial_df %>%
