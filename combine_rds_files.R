@@ -67,3 +67,6 @@ clinical_trials_df[["TrialId"]] <- NULL
 
 clinical_trials_df <- tibble::as_tibble(clinical_trials_df)
 
+clinical_trials_df_filename <- 
+  file.path(export_path, "clinical_trials_df.RDS")
+saveRDS(clinical_trials_df, clinical_trials_df_filename)
