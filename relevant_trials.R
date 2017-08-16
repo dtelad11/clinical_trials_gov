@@ -22,14 +22,13 @@ write.csv(condition_count %>%
             dplyr::arrange(desc(n)),
           "D:/temp/condition_count.csv", row.names = FALSE)
 
-clinical_trials_df %>%
+relevant_trials_df <- clinical_trials_df %>%
   dplyr::filter("2016-01-01" <= StartDate,
                 StartDate <= "2016-12-31",
                 StudyType == "Interventional",
                 Phase != "N/A")
 
-clinical_trials_df %>%
-  dplyr::filter("2016-01-01" <= StartDate, StartDate <= "2016-12-31") %>%
+relevant_trials_df %>%
   dplyr::summarize(sum(Enrollment, na.rm = TRUE))
 
 clinical_trials_df %>%
